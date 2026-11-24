@@ -157,6 +157,7 @@ button.swbtn{cursor:pointer}
 .colbtn{display:none}
 }
 @media(prefers-reduced-motion:reduce){.side,.lbl,.gt,.scrim,.colbtn svg{transition:none}}
+.linkbtn{background:none;border:0;color:var(--jade);height:auto;padding:8px 0 0;font-weight:600;font-size:.9rem;text-decoration:underline}
 </style>
 </head>
 <body>
@@ -186,8 +187,9 @@ const $ = s => document.querySelector(s);
 const app = $('#app');
 const fmt = n => Number(n).toLocaleString('en-US');
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-let S = { user: null, org: null, sub: null, plans: [], isAdmin: false, tab: 'dash', lang: 'lo', collapsed: false, mems: [] };
+let S = { user: null, org: null, sub: null, plans: [], isAdmin: false, tab: 'dash', lang: 'lo', collapsed: false, mems: [], recovery: /type=recovery/.test(location.hash) };
 try { S.collapsed = localStorage.getItem('rm_side') === '1'; } catch (e) {}
+let HASH_ERR = new URLSearchParams(location.hash.slice(1)).get('error') || '';
 try { S.lang = localStorage.getItem('rm_lang') || 'lo'; } catch (e) {}
 // Centralized dictionaries (add `th: {...}` later for Thai)
 const DICT = {
@@ -196,6 +198,11 @@ const DICT = {
     'auth.sub': 'ລະບົບຈົດຄ່າເຊົ່າ ແລະຜູ້ເຊົ່າ ສຳລັບເຈົ້າຂອງຫໍພັກ', 'auth.signup_t': 'ສະໝັກໃຊ້ງານ (ທົດລອງຟຣີ 14 ວັນ)', 'auth.login_t': 'ເຂົ້າສູ່ລະບົບ',
     'auth.email': 'ອີເມວ', 'auth.pw': 'ລະຫັດຜ່ານ (ຢ່າງໜ້ອຍ 6 ໂຕ)', 'auth.signup': 'ສະໝັກ', 'auth.login': 'ເຂົ້າສູ່ລະບົບ', 'auth.have': 'ມີບັນຊີແລ້ວ', 'auth.new': 'ສະໝັກໃໝ່',
     'auth.confirm': 'ກວດອີເມວ ແລ້ວກົດລິ້ງຢືນຢັນ ຈາກນັ້ນເຂົ້າສູ່ລະບົບ',
+    'auth.forgot': 'ລືມລະຫັດຜ່ານ?', 'auth.reset_t': 'ຕັ້ງລະຫັດຜ່ານໃໝ່', 'auth.reset_hint': 'ໃສ່ອີເມວທີ່ໃຊ້ສະໝັກ ເຮົາຈະສົ່ງລິ້ງຕັ້ງລະຫັດໃໝ່ໃຫ້', 'auth.reset_send': 'ສົ່ງລິ້ງຕັ້ງລະຫັດໃໝ່',
+    'auth.reset_sent': 'ຖ້າອີເມວນີ້ມີບັນຊີ ຈະມີລິ້ງສົ່ງໄປແລ້ວ ກວດກ່ອງຈົດໝາຍ (ແລະ Spam)', 'auth.back': 'ກັບຄືນ', 'auth.email_req': 'ກະລຸນາໃສ່ອີເມວ',
+    'auth.need_web': 'ຕ້ອງເປີດແອັບຜ່ານລິ້ງເວັບ (https://…) ບໍ່ແມ່ນໄຟລ໌ໃນຄອມ', 'auth.newpw_t': 'ຕັ້ງລະຫັດຜ່ານໃໝ່', 'auth.newpw': 'ລະຫັດຜ່ານໃໝ່ (ຢ່າງໜ້ອຍ 6 ໂຕ)',
+    'auth.newpw2': 'ຢືນຢັນລະຫັດຜ່ານໃໝ່', 'auth.newpw_save': 'ບັນທຶກ ແລະເຂົ້າສູ່ລະບົບ', 'auth.pw_short': 'ລະຫັດຜ່ານຕ້ອງມີຢ່າງໜ້ອຍ 6 ໂຕ',
+    'auth.pw_mismatch': 'ລະຫັດຜ່ານທັງສອງຊ່ອງບໍ່ກົງກັນ', 'auth.link_bad': 'ລິ້ງໝົດອາຍຸ ຫຼືໃຊ້ແລ້ວ ກະລຸນາຂໍລິ້ງໃໝ່',
     'sub.trial': 'ທົດລອງໃຊ້ຟຣີ ເຫຼືອ {d} ວັນ', 'sub.trial_end': 'ໝົດເວລາທົດລອງ ກະລຸນາເລືອກແພັກເກັດ', 'sub.free': 'ແພັກເກັດ Free', 'sub.active': 'ແພັກເກັດ {plan} ໃຊ້ໄດ້ຮອດ {date}',
     'sub.expired': 'ແພັກເກັດໝົດອາຍຸ ກະລຸນາຕໍ່ອາຍຸ', 'sub.off': 'ບໍ່ເປີດໃຊ້ງານ', 'sub.none': 'ບໍ່ພົບແພັກເກັດ',
     'kpi.expected': 'ຄ່າເຊົ່າທີ່ຄາດໄວ້/ເດືອນ', 'kpi.collected': 'ເກັບໄດ້ເດືອນນີ້', 'kpi.outstanding': 'ຍອດຄ້າງຊຳລະ', 'kpi.occ': 'ອັດຕາຫ້ອງມີຜູ້ເຊົ່າ',
@@ -209,6 +216,11 @@ const DICT = {
     'auth.sub': 'Rent and tenant management for property owners', 'auth.signup_t': 'Sign up (14-day free trial)', 'auth.login_t': 'Sign in',
     'auth.email': 'Email', 'auth.pw': 'Password (min. 6 characters)', 'auth.signup': 'Sign up', 'auth.login': 'Sign in', 'auth.have': 'I have an account', 'auth.new': 'Create account',
     'auth.confirm': 'Check your email, confirm the link, then sign in',
+    'auth.forgot': 'Forgot password?', 'auth.reset_t': 'Reset password', 'auth.reset_hint': 'Enter your account email and we will send you a reset link', 'auth.reset_send': 'Send reset link',
+    'auth.reset_sent': 'If this email has an account, a reset link was sent. Check your inbox (and spam).', 'auth.back': 'Back', 'auth.email_req': 'Please enter your email',
+    'auth.need_web': 'Open the app from its web link (https://…), not a local file', 'auth.newpw_t': 'Set a new password', 'auth.newpw': 'New password (min. 6 characters)',
+    'auth.newpw2': 'Confirm new password', 'auth.newpw_save': 'Save and sign in', 'auth.pw_short': 'Password must be at least 6 characters',
+    'auth.pw_mismatch': 'The two passwords do not match', 'auth.link_bad': 'This link has expired or was already used. Please request a new one',
     'sub.trial': 'Free trial: {d} days left', 'sub.trial_end': 'Trial ended. Please choose a plan', 'sub.free': 'Free plan', 'sub.active': '{plan} plan active until {date}',
     'sub.expired': 'Plan expired. Please renew', 'sub.off': 'Not active', 'sub.none': 'No plan found',
     'kpi.expected': 'Expected rent / month', 'kpi.collected': 'Collected this month', 'kpi.outstanding': 'Outstanding', 'kpi.occ': 'Occupancy rate',
@@ -242,23 +254,62 @@ function setMsg(text, ok) { const m = $('#msg'); if (m) { m.textContent = text |
 async function busy(btn, fn) { btn.disabled = true; try { await fn(); } finally { btn.disabled = false; } }
 
 // ---------- Auth ----------
+const authHead = () => `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><div class="brand">${LOGO}<h1 ${I('app.name')}>${tt('app.name')}</h1></div>${langSwitch()}</div>`;
 function renderAuth(mode = 'in') {
   app.className = 'wrap';
+  if (mode === 'forgot') {
+    app.innerHTML = `${authHead()}<div class="card"><h2 ${I('auth.reset_t')}>${tt('auth.reset_t')}</h2><p class="mute" ${I('auth.reset_hint')}>${tt('auth.reset_hint')}</p>
+    <label ${I('auth.email')}>${tt('auth.email')}</label><input id="em" type="email" autocomplete="email" value="${esc(S.lastEmail || '')}">
+    <div class="row"><button id="go"><i data-lucide="send"></i><span ${I('auth.reset_send')}>${tt('auth.reset_send')}</span></button>
+    <button class="ghost" id="sw" ${I('auth.back')}>${tt('auth.back')}</button></div><div id="msg" class="msg"></div></div>`;
+    bindLang();
+    $('#sw').onclick = () => renderAuth('in');
+    $('#go').onclick = e => busy(e.target.closest('button'), async () => {
+      const email = $('#em').value.trim(); S.lastEmail = email;
+      if (!email) return setMsg(tt('auth.email_req'));
+      if (location.protocol === 'file:') return setMsg(tt('auth.need_web'));
+      const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: location.origin + location.pathname });
+      error ? setMsg(error.message) : setMsg(tt('auth.reset_sent'), true);
+    });
+    return;
+  }
   const up = mode === 'up';
-  app.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><div class="brand">${LOGO}<h1 ${I('app.name')}>${tt('app.name')}</h1></div>${langSwitch()}</div>
+  app.innerHTML = `${authHead()}
   <p class="mute" ${I('auth.sub')}>${tt('auth.sub')}</p>
   <div class="card"><h2 ${I(up ? 'auth.signup_t' : 'auth.login_t')}>${tt(up ? 'auth.signup_t' : 'auth.login_t')}</h2>
-  <label ${I('auth.email')}>${tt('auth.email')}</label><input id="em" type="email" autocomplete="email">
+  <label ${I('auth.email')}>${tt('auth.email')}</label><input id="em" type="email" autocomplete="email" value="${esc(S.lastEmail || '')}">
   <label ${I('auth.pw')}>${tt('auth.pw')}</label><input id="pw" type="password" autocomplete="${up ? 'new-password' : 'current-password'}">
+  ${up ? '' : `<button class="linkbtn" id="fg" ${I('auth.forgot')}>${tt('auth.forgot')}</button>`}
   <div class="row"><button id="go"><i data-lucide="${up ? 'user-plus' : 'log-in'}"></i><span ${I(up ? 'auth.signup' : 'auth.login')}>${tt(up ? 'auth.signup' : 'auth.login')}</span></button>
   <button class="ghost" id="sw" ${I(up ? 'auth.have' : 'auth.new')}>${tt(up ? 'auth.have' : 'auth.new')}</button></div><div id="msg" class="msg"></div></div>`;
   bindLang();
-  $('#sw').onclick = () => renderAuth(up ? 'in' : 'up');
+  if (HASH_ERR) { setMsg(tt('auth.link_bad')); HASH_ERR = ''; history.replaceState(null, '', location.pathname + location.search); }
+  $('#sw').onclick = () => { S.lastEmail = $('#em').value.trim(); renderAuth(up ? 'in' : 'up'); };
+  if (!up) $('#fg').onclick = () => { S.lastEmail = $('#em').value.trim(); renderAuth('forgot'); };
   $('#go').onclick = e => busy(e.target.closest('button'), async () => {
     const email = $('#em').value.trim(), password = $('#pw').value;
     const { data, error } = up ? await sb.auth.signUp({ email, password }) : await sb.auth.signInWithPassword({ email, password });
     if (error) return setMsg(error.message);
     if (up && !data.session) setMsg(tt('auth.confirm'), true);
+  });
+}
+
+// Shown after the user opens the reset link from the email
+function renderReset() {
+  app.className = 'wrap';
+  app.innerHTML = `${authHead()}<div class="card"><h2 ${I('auth.newpw_t')}>${tt('auth.newpw_t')}</h2>
+  <label ${I('auth.newpw')}>${tt('auth.newpw')}</label><input id="p1" type="password" autocomplete="new-password">
+  <label ${I('auth.newpw2')}>${tt('auth.newpw2')}</label><input id="p2" type="password" autocomplete="new-password">
+  <div class="row"><button id="go"><i data-lucide="check"></i><span ${I('auth.newpw_save')}>${tt('auth.newpw_save')}</span></button></div><div id="msg" class="msg"></div></div>`;
+  bindLang();
+  $('#go').onclick = e => busy(e.target.closest('button'), async () => {
+    const a = $('#p1').value, b = $('#p2').value;
+    if (a.length < 6) return setMsg(tt('auth.pw_short'));
+    if (a !== b) return setMsg(tt('auth.pw_mismatch'));
+    const { error } = await sb.auth.updateUser({ password: a });
+    if (error) return setMsg(error.message);
+    S.recovery = false; history.replaceState(null, '', location.pathname + location.search);
+    load();
   });
 }
 
@@ -581,7 +632,12 @@ async function viewAdmin() {
 }
 
 let _t; new MutationObserver(() => { clearTimeout(_t); _t = setTimeout(() => window.lucide && lucide.createIcons(), 0); }).observe(app, { childList: true, subtree: true });
-function start() { sb.auth.onAuthStateChange(() => { setTimeout(load, 0); }); }
+function start() {
+  sb.auth.onAuthStateChange(ev => {
+    if (ev === 'PASSWORD_RECOVERY') S.recovery = true;
+    setTimeout(() => (S.recovery ? renderReset() : load()), 0);
+  });
+}
 (function boot() {
   const slow = setTimeout(() => { if (!window.__up) app.insertAdjacentHTML('beforeend', '<p class="mute" id="slowmsg">ເຄືອຂ່າຍຊ້າ ກຳລັງລອງເສັ້ນທາງສຳຮອງ... / Slow network, trying backup...</p>'); }, 3500);
   window.__libs.then(okLib => {
